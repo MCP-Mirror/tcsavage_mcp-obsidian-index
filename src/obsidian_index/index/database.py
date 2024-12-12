@@ -5,7 +5,7 @@ from textwrap import dedent
 import duckdb
 import torch
 
-from obsidian_index.logging import logging
+from obsidian_index.logger import logging
 
 logger = logging.getLogger(__name__)
 

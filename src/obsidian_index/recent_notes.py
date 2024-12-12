@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from pathlib import Path
 
-from obsidian_index.logging import logging
+from obsidian_index.logger import logging
 
 logger = logging.getLogger(__name__)
 

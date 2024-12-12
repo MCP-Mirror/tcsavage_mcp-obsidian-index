@@ -2,9 +2,6 @@
 
 An MCP server that provides a semantic search over an Obsidian vault and exposes recent notes as resources.
 
-> [!WARNING]
-> Obsidian Index is currently incapable of simultaneously indexing and serching. For now you must build an index before launching the MCP server.
-
 ## Components
 
 ### Resources
@@ -18,11 +15,16 @@ The server exposes recently modified notes in your vaults as resources to MCP cl
 The server implements one tool:
 - `search-notes`: Performs semantic search over indexed notes
 
-## Build an index
+## Run the server
 
 ```bash
-uv run obsidian-index index --vault <VAULT_PATH> --database <DATABASE_PATH>
+uv run obsidian-index mcp --vault <VAULT_PATH> --database <DATABASE_PATH> --reindex --watch
 ```
+
+- `--vault`: Path to the Obsidian vault (can be specified multiple times)
+- `--database`: Path to the local database file (will be created if it doesn't exist)
+- `--reindex`: Reindex all notes in the vault (you probably want this every time right now)
+- `--watch`: Watch for changes in the vault and update the index accordingly
 
 ## Quickstart
 
@@ -47,7 +49,9 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
         "--database",
         "<PATH_TO_DATABASE>",
         "--vault",
-        "<PATH_TO_VAULT>"
+        "<PATH_TO_VAULT>",
+        "--reindex",
+        "--watch"
       ]
     }
   }
@@ -61,7 +65,13 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
     "obsidian-index": {
       "command": "uvx",
       "args": [
-        "obsidian-index"
+        "obsidian-index",
+        "--database",
+        "<PATH_TO_DATABASE>",
+        "--vault",
+        "<PATH_TO_VAULT>",
+        "--reindex",
+        "--watch"
       ]
     }
   }

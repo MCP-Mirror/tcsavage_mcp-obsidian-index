@@ -3,7 +3,7 @@ from pathlib import Path
 
 from obsidian_index.index.database import Database
 from obsidian_index.index.encoder import Encoder
-from obsidian_index.logging import logging
+from obsidian_index.logger import logging
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +15,11 @@ class Searcher:
 
     def __init__(
         self,
-        database_path: Path,
+        database: Database,
         vaults: dict[str, Path],
         encoder: Encoder,
     ):
-        self.database = Database(database_path, read_only=True)
+        self.database = database
         self.vaults = vaults
         self.encoder = encoder
 

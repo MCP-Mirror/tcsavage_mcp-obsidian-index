@@ -1,7 +1,4 @@
 import asyncio
-import itertools
-import subprocess
-import sys
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -11,56 +8,32 @@ import pydantic
 from mcp.server import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 
-from obsidian_index.index.encoder import Encoder
-from obsidian_index.index.searcher import Searcher
-from obsidian_index.logging import logging
+from obsidian_index.background_worker import BaseController
+from obsidian_index.index.messages import SearchRequestMessage
+from obsidian_index.index.worker import Worker
+from obsidian_index.logger import logging
 from obsidian_index.recent_notes import find_recent_notes
 
 logger = logging.getLogger(__name__)
 
 
-def run_background_indexer(vaults: dict[str, Path], database_path: Path):
-    """
-    Run the indexer in a different process.
-    We re-invoke "obsidian-index" with the "index" command.
-    """
-    assert all(vault_path.name == vault_name for vault_name, vault_path in vaults.items()), (
-        "Due to the way we get the vault name from the path, "
-        "the vault name must match the directory name. "
-        "This may be relaxed in the future."
-    )
-    vault_options = itertools.chain.from_iterable(
-        ["--vault", vault_path] for vault_path in vaults.values()
-    )
-    args = [
-        sys.executable,
-        sys.argv[0],
-        "index",
-        "--database",
-        database_path,
-        *vault_options,
-        "--watch",
-    ]
-    logger.info(
-        "Starting background indexer with args: %s",
-        " ".join(str(arg) for arg in args),
-    )
-    popen = subprocess.Popen(
-        args,
-        # Forward stderr to the parent process
-        stderr=sys.stderr,
-    )
-    logger.info("Started background indexer: %s", popen.pid)
-
-
-def run_server(vaults: dict[str, Path], database_path: Path, background_indexer: bool = False):
-    encoder = Encoder()
+def run_server(
+    vaults: dict[str, Path],
+    database_path: Path,
+    enqueue_all: bool = False,
+    watch_directories: bool = False,
+    ingest_batch_size: int = 32,
+):
+    # encoder = Encoder()
     server = Server("obsidian-index")
-
-    if background_indexer:
-        run_background_indexer(vaults, database_path)
-
-    searcher = Searcher(database_path, vaults, encoder)
+    worker = Worker(
+        database_path,
+        vaults,
+        enqueue_all=enqueue_all,
+        watch_directories=watch_directories,
+        ingest_batch_size=ingest_batch_size,
+    )
+    worker_controller = BaseController(worker)
 
     @server.list_tools()
     async def handle_list_tools() -> list[types.Tool]:
@@ -101,7 +74,7 @@ def run_server(vaults: dict[str, Path], database_path: Path, background_indexer:
         if not query:
             raise ValueError("Missing query")
 
-        paths = searcher.search(query)
+        resp = await worker_controller.request(SearchRequestMessage(query))
 
         return [
             types.EmbeddedResource(
@@ -112,7 +85,7 @@ def run_server(vaults: dict[str, Path], database_path: Path, background_indexer:
                     text=path.read_text(),
                 ),
             )
-            for path in paths
+            for path in resp.paths
         ]
 
     @server.list_resources()
@@ -161,6 +134,7 @@ def run_server(vaults: dict[str, Path], database_path: Path, background_indexer:
         return note_path.read_text()
 
     async def run_server():
+        worker_controller.start()
         # Run the server using stdin/stdout streams
         async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
             await server.run(
@@ -175,6 +149,8 @@ def run_server(vaults: dict[str, Path], database_path: Path, background_indexer:
                     ),
                 ),
             )
+
+        worker_controller.stop()
 
     logger.info("Starting server")
 
